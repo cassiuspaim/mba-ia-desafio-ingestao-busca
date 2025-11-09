@@ -29,5 +29,28 @@ services:
       -c "CREATE EXTENSION IF NOT EXISTS vector;"
     restart: "no"
 
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ingest_app
+    working_dir: /app
+    # Bind-mount para desenvolvimento: código local disponível dentro do container
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    environment:
+      # Defaults seguras caso .env não esteja presente
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/rag
+      PDF_PATH: /app/document.pdf
+    depends_on:
+      postgres:
+        condition: service_healthy
+      bootstrap_vector_ext:
+        condition: service_completed_successfully
+    command: ["python", "ingest.py"]
+    restart: "no"
+
 volumes:
   postgres_data:

@@ -1,3 +1,38 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.log
+
+# --- Virtual environments ---
+.venv/
+venv/
+ENV/
+env/
+.env/
+pip-wheel-metadata/
+
+# --- Environment variables ---
 .env
-/venv
-__pycache__
+.env.local
+.env.*.local
+
+# --- IDEs & tools ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Pyenv ---
+.python-version
+
+# --- Docker ---
+postgres_data/
+*.pid
+
+# --- macOS system files ---
+.DS_Store

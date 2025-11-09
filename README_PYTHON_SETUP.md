@@ -194,23 +194,34 @@ Stops and removes all running containers.
 ```bash
 make restart
 ```
+Restarts all containers cleanly.
 
 ### 🧠 Connect to the database (psql shell)
 ```bash
 make psql
 ```
+Opens an interactive PostgreSQL shell inside the container.
 
 ### 🧾 View logs in real time
 ```bash
 make logs
 ```
+Streams logs from the PostgreSQL service.
+
+### 📄 Run document ingestion
+```bash
+make ingest
+```
+Runs the document ingestion process (`ingest.py`) inside the application container.
+The container is created temporarily and removed automatically after execution.
 
 ### 🧼 Remove all containers, volumes, and images
 ```bash
 make clean
 ```
 
-> The Makefile internally calls Docker Compose commands to manage services defined in `docker-compose.yml`.
+Removes containers, volumes, and local images created by the project.
+> The Makefile internally calls Docker Compose commands to manage services defined in `docker-compose.yml` and provides an easy way to execute ingestion tasks.
 
 ---
 

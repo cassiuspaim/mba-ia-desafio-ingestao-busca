@@ -1,11 +1,12 @@
 # 🧰 Makefile for mba-ia-desafio-ingestao-busca
-# Simplifies Docker Compose management and health checking
+# Simplifies Docker Compose management and ingestion commands
 
 DOCKER_COMPOSE = docker compose
 SERVICE_NAME = postgres
 CONTAINER_NAME = postgres_rag
+APP_SERVICE = app
 
-# 🟢 Start all services (Postgres + pgVector extension)
+# 🟢 Start all services (Postgres + pgVector extension + app)
 up:
 	@echo "🚀 Starting Docker Compose services..."
 	$(DOCKER_COMPOSE) up -d
@@ -44,3 +45,9 @@ clean:
 	@echo "🧨 Removing all Docker volumes and images related to this project..."
 	$(DOCKER_COMPOSE) down -v --rmi local
 	@echo "✅ Cleanup complete."
+
+# 📄 Run document ingestion process inside the app container
+ingest:
+	@echo "📥 Running document ingestion inside the app container..."
+	$(DOCKER_COMPOSE) run --rm $(APP_SERVICE) python ingest.py
+	@echo "✅ Ingestion completed."

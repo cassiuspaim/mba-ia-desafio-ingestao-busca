@@ -55,7 +55,7 @@ ingest:
 # Run tests inside the app container (preferred in Dockerized workflow)
 test:
 	@echo "🧪 Running tests inside the app container..."
-	docker compose run --rm -e PYTHONPATH=/app/src app sh -c "pip install -q pytest && pytest"
+	docker compose run --rm -e PYTHONPATH=/app/src app sh -c "pip install -q pytest pytest-cov && pytest"
 	@echo "✅ Tests finished."
 
 # Run tests locally (if .venv is active)

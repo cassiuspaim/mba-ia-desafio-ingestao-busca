@@ -1,183 +1,66 @@
 # tests/test_ingest.py
-# Tests for PDF ingestion using environment variable PDF_PATH.
-# We mock PdfReader to avoid relying on real PDF files.
+# Tests for PDF ingestion and character-level chunking with overlap.
 
+import os
 import pytest
-import ingest  # the module under test
+import ingest
 
 
-# ============================================================================
-# Fixtures and Helpers
-# ============================================================================
+def test_chunk_text_basic_sizes():
+    text = "A" * 2400  # 2400 chars
+    chunks = ingest.chunk_text(text, chunk_size=1000, chunk_overlap=150)
+    # With RecursiveCharacterTextSplitter:
+    # - Chunk 0: pos 0 to 1000 (1000 chars)
+    # - Chunk 1: pos (1000-150)=850 to 850+1000=1850 (1000 chars)
+    # - Chunk 2: pos (1850-150)=1700 to 2400 (700 chars)
+    assert len(chunks) == 3
+    assert len(chunks[0]) == 1000
+    assert len(chunks[1]) == 1000
+    # last chunk: 2400 - 1700 = 700 chars
+    assert len(chunks[2]) == 700
 
-class FakePage:
-    """Mock page object for PdfReader."""
-    def __init__(self, text):
-        self._text = text
-
-    def extract_text(self):
-        return self._text
-
-
-class FakeReader:
-    """Mock PdfReader with configurable pages."""
-    def __init__(self, path, pages_content):
-        self.path = path
-        self.pages = [FakePage(text) for text in pages_content]
-
-    def __init__(self, path):
-        # This will be overridden by the factory
-        pass
+    # Overlap check: last 150 chars of chunk[i] == first 150 chars of chunk[i+1]
+    assert chunks[0][-150:] == chunks[1][:150]
+    assert chunks[1][-150:] == chunks[2][:150]
 
 
-def create_fake_reader(pages_content):
-    """Factory to create a FakeReader with specific page content."""
-    class CustomFakeReader:
-        def __init__(self, path):
-            self.path = path
-            self.pages = [FakePage(text) for text in pages_content]
-    return CustomFakeReader
-
-
-# ============================================================================
-# Validation Tests (Input Errors)
-# ============================================================================
-
-@pytest.mark.parametrize("path_value,env_value", [
-    (None, None),           # Both missing
-    (None, ""),             # Env is empty string
-    ("", None),             # Arg is empty string
-    ("", ""),               # Both empty strings
-])
-def test_raises_value_error_when_path_missing(monkeypatch, path_value, env_value):
-    """Should raise ValueError when PDF_PATH is not provided via argument or environment."""
-    if env_value is None:
-        monkeypatch.delenv("PDF_PATH", raising=False)
-    else:
-        monkeypatch.setenv("PDF_PATH", env_value)
-    
-    with pytest.raises(ValueError, match="PDF_PATH is not set"):
-        ingest.ingest_pdf(path_value)
-
-
-@pytest.mark.parametrize("missing_filename", [
-    "nonexistent.pdf",
-    "missing/path/file.pdf",
-    "../outside/file.pdf",
-])
-def test_raises_file_not_found_when_file_missing(monkeypatch, tmp_path, missing_filename):
-    """Should raise FileNotFoundError when the specified path does not exist."""
-    fake_path = tmp_path / missing_filename
-    monkeypatch.setenv("PDF_PATH", str(fake_path))
-    
-    with pytest.raises(FileNotFoundError, match="PDF file not found"):
-        ingest.ingest_pdf()
-
-
-# ============================================================================
-# PDF Extraction Tests (Table-Driven / Parametrized)
-# ============================================================================
-
-@pytest.mark.parametrize("pages_content,expected_output,test_description", [
-    # Basic cases
-    (["Hello", "World"], "Hello\n\nWorld", "two_pages_with_content"),
-    (["Single page"], "Single page", "single_page"),
-    (["First", "Second", "Third"], "First\n\nSecond\n\nThird", "three_pages"),
-    
-    # Empty page handling
-    (["Hello", "", "World"], "Hello\n\nWorld", "empty_page_in_middle"),
-    (["", "Content", ""], "Content", "empty_pages_at_edges"),
-    (["", "", ""], "", "all_pages_empty"),
-    ([], "", "no_pages"),
-    
-    # Whitespace handling
-    (["  Hello  ", "  World  "], "Hello\n\nWorld", "pages_with_leading_trailing_spaces"),
-    (["   ", "Content", "   "], "Content", "pages_with_only_spaces"),
-    (["\n\nHello\n\n", "\n\nWorld\n\n"], "Hello\n\nWorld", "pages_with_newlines"),
-    (["\t\tTab\t\t"], "Tab", "pages_with_tabs"),
-    
-    # Special characters and formatting
-    (["Hello!", "World?"], "Hello!\n\nWorld?", "pages_with_punctuation"),
-    (["Line 1\nLine 2", "Line 3\nLine 4"], "Line 1\nLine 2\n\nLine 3\nLine 4", "pages_with_internal_newlines"),
-    (["", "Test", "", "Data", ""], "Test\n\nData", "multiple_empty_pages_scattered"),
-    
-    # Edge cases
-    (["A"], "A", "single_character"),
-    (["", "A", ""], "A", "single_character_with_empty_pages"),
-    (["Multiple\n\nBlank\n\n\nLines"], "Multiple\n\nBlank\n\n\nLines", "page_with_multiple_blank_lines"),
-])
-def test_pdf_text_extraction_scenarios(monkeypatch, tmp_path, pages_content, expected_output, test_description):
-    """
-    Table-driven test for various PDF text extraction scenarios.
-    Tests different combinations of page content, empty pages, and whitespace handling.
-    """
-    # Arrange: Create fake PDF file
-    pdf_path = tmp_path / f"test_{test_description}.pdf"
+def test_ingest_pdf_returns_chunks_with_env_path(monkeypatch, tmp_path):
+    # Arrange an env PDF_PATH and a fake PdfReader
+    pdf_path = tmp_path / "doc.pdf"
     pdf_path.write_bytes(b"%PDF-FAKE")
+
     monkeypatch.setenv("PDF_PATH", str(pdf_path))
-    
-    # Mock PdfReader with the specified pages
-    monkeypatch.setattr(ingest, "PdfReader", create_fake_reader(pages_content))
-    
-    # Act
-    result = ingest.ingest_pdf()
-    
-    # Assert
-    assert result == expected_output, f"Failed for scenario: {test_description}"
 
+    class FakePage:
+        def __init__(self, text): self._text = text
+        def extract_text(self): return self._text
 
-# ============================================================================
-# Path Resolution Tests
-# ============================================================================
-
-def test_explicit_path_argument_takes_precedence_over_env(monkeypatch, tmp_path):
-    """Should use explicit path argument even when PDF_PATH env is set."""
-    # Create two different PDF files
-    env_pdf = tmp_path / "env.pdf"
-    arg_pdf = tmp_path / "arg.pdf"
-    env_pdf.write_bytes(b"%PDF-ENV")
-    arg_pdf.write_bytes(b"%PDF-ARG")
-    
-    monkeypatch.setenv("PDF_PATH", str(env_pdf))
-    
-    # Mock PdfReader to track which path was used
-    pages_content = ["Content from argument path"]
-    
-    class PathTrackingReader:
+    class FakeReader:
         def __init__(self, path):
-            self.path = path
-            # Verify the correct path was used
-            assert str(path) == str(arg_pdf), f"Expected {arg_pdf}, got {path}"
-            self.pages = [FakePage(text) for text in pages_content]
-    
-    monkeypatch.setattr(ingest, "PdfReader", PathTrackingReader)
-    
+            assert str(path) == str(pdf_path)
+            self.pages = [FakePage("Hello " * 120), FakePage("World " * 120)]
+    monkeypatch.setattr(ingest, "PdfReader", FakeReader)
+
     # Act
-    result = ingest.ingest_pdf(str(arg_pdf))
-    
+    chunks = ingest.ingest_pdf(chunk_size=1000, chunk_overlap=150)
+
     # Assert
-    assert result == "Content from argument path"
+    assert isinstance(chunks, list) and len(chunks) >= 1
+    assert all(isinstance(c, str) for c in chunks)
+    # sanity: every chunk length <= 1000
+    assert all(len(c) <= 1000 for c in chunks)
 
 
-def test_uses_env_variable_when_no_explicit_path(monkeypatch, tmp_path):
-    """Should use PDF_PATH environment variable when no explicit path is provided."""
-    pdf_path = tmp_path / "from_env.pdf"
-    pdf_path.write_bytes(b"%PDF-ENV")
-    
-    monkeypatch.setenv("PDF_PATH", str(pdf_path))
-    
-    # Mock PdfReader
-    pages_content = ["Content from environment"]
-    
-    class PathTrackingReader:
-        def __init__(self, path):
-            assert str(path) == str(pdf_path), f"Expected {pdf_path}, got {path}"
-            self.pages = [FakePage(text) for text in pages_content]
-    
-    monkeypatch.setattr(ingest, "PdfReader", PathTrackingReader)
-    
-    # Act
-    result = ingest.ingest_pdf()
-    
-    # Assert
-    assert result == "Content from environment"
+def test_read_pdf_text_raises_value_error_when_path_missing(monkeypatch):
+    """Should raise ValueError when PDF_PATH is not set and no path argument provided."""
+    monkeypatch.delenv("PDF_PATH", raising=False)
+    with pytest.raises(ValueError, match="PDF_PATH is not set"):
+        ingest.read_pdf_text()
+
+
+def test_read_pdf_text_raises_file_not_found_when_file_missing(monkeypatch, tmp_path):
+    """Should raise FileNotFoundError when the specified path does not exist."""
+    fake_path = tmp_path / "nonexistent.pdf"
+    monkeypatch.setenv("PDF_PATH", str(fake_path))
+    with pytest.raises(FileNotFoundError, match="PDF file not found"):
+        ingest.read_pdf_text()

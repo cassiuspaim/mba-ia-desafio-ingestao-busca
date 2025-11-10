@@ -36,3 +36,10 @@ postgres_data/
 
 # --- macOS system files ---
 .DS_Store
+
+# --- Test coverage reports ---
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover

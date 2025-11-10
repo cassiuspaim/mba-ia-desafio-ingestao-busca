@@ -21,10 +21,38 @@ python_functions = [
 
 # Useful defaults:
 # -q: quiet mode; -ra: show extra summary for (x)failed, (x)passed, skipped; --maxfail=1: fail fast on first error
-addopts = "-q -ra --maxfail=1"
+addopts = "-q -ra --maxfail=1 --cov=src --cov-report=term-missing --cov-report=html"
 
 # Treat warnings as non-fatal but visible (adjust as needed)
 filterwarnings = [
   "ignore::DeprecationWarning",
   "ignore::UserWarning",
+]
+
+[tool.coverage.run]
+# Source code directories to measure coverage for
+source = ["src"]
+omit = [
+  "*/tests/*",
+  "*/__pycache__/*",
+  "*/venv/*",
+  "*/.venv/*",
+]
+
+[tool.coverage.report]
+# Fail if coverage is below this threshold (adjusted for modules under development)
+fail_under = 60
+# Show lines that weren't covered
+show_missing = true
+# Skip files with no statements (empty or stub files)
+skip_empty = true
+# Ignore these files in coverage reports
+exclude_lines = [
+  "pragma: no cover",
+  "def __repr__",
+  "raise AssertionError",
+  "raise NotImplementedError",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+  "@abstractmethod",
 ]

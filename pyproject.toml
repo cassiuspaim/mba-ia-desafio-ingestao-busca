@@ -1,0 +1,30 @@
+# pyproject.toml
+# Centralizes pytest configuration for consistent test discovery and output.
+
+[tool.pytest.ini_options]
+# Where pytest should look for tests
+testpaths = [
+  "tests",
+]
+
+# File and function/class naming patterns for tests
+python_files = [
+  "test_*.py",
+  "*_test.py",
+]
+python_classes = [
+  "Test*",
+]
+python_functions = [
+  "test_*",
+]
+
+# Useful defaults:
+# -q: quiet mode; -ra: show extra summary for (x)failed, (x)passed, skipped; --maxfail=1: fail fast on first error
+addopts = "-q -ra --maxfail=1"
+
+# Treat warnings as non-fatal but visible (adjust as needed)
+filterwarnings = [
+  "ignore::DeprecationWarning",
+  "ignore::UserWarning",
+]

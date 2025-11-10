@@ -51,3 +51,14 @@ ingest:
 	@echo "📥 Running document ingestion inside the app container..."
 	$(DOCKER_COMPOSE) run --rm $(APP_SERVICE) python ingest.py
 	@echo "✅ Ingestion completed."
+
+# Run tests inside the app container (preferred in Dockerized workflow)
+test:
+	@echo "🧪 Running tests inside the app container..."
+	docker compose run --rm -e PYTHONPATH=/app/src app sh -c "pip install -q pytest && pytest"
+	@echo "✅ Tests finished."
+
+# Run tests locally (if .venv is active)
+test-local:
+	export PYTHONPATH=src && pytest
+	@echo "✅ Tests finished."

@@ -21,3 +21,7 @@ COPY . /app
 
 # Default command can be overridden by docker-compose
 CMD ["python", "ingest.py"]
+
+environment:
+    PYTHONPATH: /app/src
+  

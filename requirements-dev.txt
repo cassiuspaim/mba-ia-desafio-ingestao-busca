@@ -1,0 +1,2 @@
+# requirements-dev.txt - Development dependencies
+pytest==8.3.3

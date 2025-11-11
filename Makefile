@@ -6,6 +6,12 @@ SERVICE_NAME = postgres
 CONTAINER_NAME = postgres_rag
 APP_SERVICE = app
 
+# Centralized dependency installation commands
+# These can be reused across different environments
+INSTALL_DEPS = pip install -q --upgrade pip && \
+	pip install -q -r requirements.txt -r requirements-dev.txt && \
+	pip install -q pytest pytest-cov
+
 # 🟢 Start all services (Postgres + pgVector extension + app)
 up:
 	@echo "🚀 Starting Docker Compose services..."
@@ -52,21 +58,43 @@ ingest:
 	$(DOCKER_COMPOSE) run --rm $(APP_SERVICE) python ingest.py
 	@echo "✅ Ingestion completed."
 
-# Run tests inside the app container (preferred in Dockerized workflow)
-test:
-	@echo "🧪 Running tests inside the app container..."
-	@docker build -t mba-ia-app:test -q . > /dev/null
-	@docker run --rm -v $$(pwd):/app -w /app -e PYTHONPATH=/app/src mba-ia-app:test sh -c "pip install -q pytest pytest-cov && pytest"
-	@echo "✅ Tests finished."
+# Install dependencies in current environment
+# Can be used locally or inside containers
+# Uses centralized INSTALL_DEPS variable
+deps:
+	@echo "📦 Installing Python dependencies..."
+	@$(INSTALL_DEPS)
+	@echo "✅ Dependencies installed."
 
-# Run tests locally (creates and activates .venv automatically if needed)
-test-local:
-	@echo "🧪 Running tests locally..."
+# Install dependencies in local virtual environment
+deps-local:
+	@echo "📦 Setting up local virtual environment..."
 	@if [ ! -d .venv ]; then \
 		echo "📦 Creating virtual environment..."; \
 		python3 -m venv .venv; \
-		echo "📥 Installing dependencies..."; \
-		. .venv/bin/activate && pip install -q --upgrade pip && pip install -q -r requirements.txt -r requirements-dev.txt; \
 	fi
+	@echo "📥 Installing dependencies in .venv..."
+	@. .venv/bin/activate && $(MAKE) deps
+	@echo "✅ Local dependencies installed."
+
+# Run tests inside the app container (preferred in Dockerized workflow)
+# Uses centralized INSTALL_DEPS variable for dependency installation
+test: deps-container
+	@echo "🧪 Running tests inside the app container..."
+	@docker run --rm -v $$(pwd):/app -w /app -e PYTHONPATH=/app/src mba-ia-app:test sh -c "$(INSTALL_DEPS) && pytest"
+	@echo "✅ Tests finished."
+
+# Install dependencies inside container (used by test task)
+# Builds the container image with base dependencies from requirements.txt
+deps-container:
+	@echo "📦 Building container with base dependencies..."
+	@docker build -t mba-ia-app:test -q . > /dev/null
+	@echo "✅ Container ready (dev dependencies will be installed during test run)."
+
+# Run tests locally (creates and activates .venv automatically if needed)
+test-local: deps-local
+	@echo "🧪 Running tests locally..."
 	@. .venv/bin/activate && export PYTHONPATH=src && pytest
 	@echo "✅ Tests finished."
+
+

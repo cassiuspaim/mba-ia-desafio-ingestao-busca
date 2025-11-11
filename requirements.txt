@@ -12,13 +12,13 @@ dataclasses-json==0.6.7
 distro==1.9.0
 filetype==1.2.0
 frozenlist==1.7.0
-google-ai-generativelanguage==0.6.18
-google-api-core==2.25.1
+# google-ai-generativelanguage==0.6.18
+google-api-core==2.17.1
 google-auth==2.40.3
-googleapis-common-protos==1.70.0
+googleapis-common-protos==1.63.2
 greenlet==3.2.4
-grpcio==1.74.0
-grpcio-status==1.74.0
+grpcio==1.62.2
+grpcio-status==1.62.2
 h11==0.16.0
 httpcore==1.0.9
 httpx==0.28.1
@@ -30,7 +30,8 @@ jsonpointer==3.0.0
 langchain==0.3.27
 langchain-community==0.3.27
 langchain-core==0.3.74
-langchain-google-genai==2.1.9
+# langchain-google-genai==2.1.9
+# langchain-google-genai==2.0.11  # Comentado: conflito com google-generativeai e não usado diretamente no código
 langchain-openai==0.3.30
 langchain-postgres==0.0.15
 langchain-text-splitters==0.3.9
@@ -44,8 +45,9 @@ orjson==3.11.3
 packaging==25.0
 pgvector==0.3.6
 propcache==0.3.2
-proto-plus==1.26.1
-protobuf==6.32.0
+proto-plus==1.22.3
+# protobuf==6.32.0
+protobuf==4.25.3
 psycopg==3.2.9
 psycopg-binary==3.2.9
 psycopg-pool==3.2.6
@@ -73,3 +75,7 @@ typing_extensions==4.15.0
 urllib3==2.5.0
 yarl==1.20.1
 zstandard==0.24.0
+# openai>=1.0.0
+google-generativeai==0.8.5
+# google-ai-generativelanguage==0.6.15  # Conflito com langchain-google-genai, removido
+

@@ -1,81 +1,54 @@
-# src/ingest.py
-# PDF ingestion with character-level chunking using LangChain splitters.
-
+from __future__ import annotations
 import os
-from typing import List, Optional
-
+from typing import List
 from dotenv import load_dotenv
 from pypdf import PdfReader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from search import embed_text, get_conn, ensure_schema, clear_document, insert_chunks
 
 load_dotenv()
+CHUNK_SIZE = 1000
+OVERLAP = 150
 
-
-def read_pdf_text(path: Optional[str] = None) -> str:
-    """
-    Read and concatenate all text from a PDF.
-    Priority of path resolution:
-      1) explicit `path` argument
-      2) environment variable PDF_PATH
-    Raises:
-      ValueError if no path is provided.
-      FileNotFoundError if the resolved path does not exist.
-    """
-    resolved = path or os.getenv("PDF_PATH")
-    if not resolved:
-        raise ValueError("PDF_PATH is not set (env) and no explicit path was provided.")
-    if not os.path.exists(resolved):
-        raise FileNotFoundError(f"PDF file not found: {resolved}")
-
-    reader = PdfReader(resolved)
+def read_pdf_text(path: str) -> str:
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"PDF não encontrado: {path}")
+    reader = PdfReader(path)
     parts: List[str] = []
     for page in reader.pages:
-        txt = page.extract_text() or ""
-        txt = txt.strip()
-        if txt:
-            parts.append(txt)
-    return "\n\n".join(parts)
+        parts.append(page.extract_text() or "")
+    return "\n".join(parts)
 
+def split_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = OVERLAP) -> list[str]:
+    chunks: list[str] = []
+    n = len(text); start = 0
+    while start < n:
+        end = min(start + chunk_size, n)
+        chunks.append(text[start:end])
+        if end == n: break
+        start = max(0, end - overlap)
+    return chunks
 
-def chunk_text(
-    text: str,
-    chunk_size: int = 1000,
-    chunk_overlap: int = 150,
-) -> List[str]:
-    """
-    Split text into character-based chunks with overlap using
-    LangChain's RecursiveCharacterTextSplitter.
-    - chunk_size: max characters per chunk
-    - chunk_overlap: number of overlapping characters between adjacent chunks
-    """
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-        length_function=len,
-        # Try to respect paragraph and line boundaries first, then spaces, then raw chars
-        separators=["\n\n", "\n", " ", ""],
-    )
-    return splitter.split_text(text)
-
-
-def ingest_pdf(
-    path: Optional[str] = None,
-    chunk_size: int = 1000,
-    chunk_overlap: int = 150,
-) -> List[str]:
-    """
-    High-level ingestion: read PDF text and return character-level chunks.
-    """
-    text = read_pdf_text(path=path)
-    return chunk_text(text, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
-
+def main():
+    pdf_path = os.getenv("PDF_PATH", "document.pdf")
+    doc_id = os.path.basename(pdf_path)
+    text = read_pdf_text(pdf_path)
+    chunks = split_text(text, CHUNK_SIZE, OVERLAP)
+    if chunks:
+        sample = chunks[0]
+    else:
+        sample = ""
+    dim = len(embed_text(sample))
+    conn = get_conn()
+    ensure_schema(conn, dim)
+    clear_document(conn, doc_id)
+    rows = [(i, c, embed_text(c)) for i, c in enumerate(chunks)]
+    if rows:
+        insert_chunks(conn, doc_id, rows)
+        with conn.cursor() as cur:
+            cur.execute("ANALYZE rag_chunks;");
+            conn.commit()
+    conn.close()
+    print(f"✅ Ingestão concluída. Chunks: {len(chunks)}")
 
 if __name__ == "__main__":
-    # Simple CLI: read + chunk + report
-    try:
-        chunks = ingest_pdf()
-        print(f"[ingest] Produced {len(chunks)} chunks; "
-              f"avg len={sum(map(len, chunks))/max(len(chunks),1):.1f}")
-    except Exception as e:
-        print(f"[ingest] Error: {e}")
-        raise
+    main()
